@@ -1,4 +1,44 @@
-# SFND 3D Object Tracking
+# Sensor Fusion Engineer Project 3 - 3D Object Tracking
+
+## Benjamin Söllner
+
+This project is forked from the [Udacity Sensor Fusion Nanodegree](https://www.udacity.com/course/sensor-fusion-engineer-nanodegree--nd313) online class content and subsequently completed to meet the courses project submission standards. The remaining section of this `README` includes the Reflection which has to be as part of this project and details about the general course content and how to build this project. The source code in this repo also contains the lesson quizzes in the separate ``src/quizzes`` folder. Go to [udacity/SFND_3D_Object_Tracking](https://github.com/udacity/SFND_3D_Object_Tracking) if you want to retrieve the original (unfinished) repo. Don't you cheat by copying my repo in order to use it as your Nanodegree submission! :-o
+
+## Reflection
+
+This section answers how this Udacity project submission fulfils the project [rubric](https://review.udacity.com/#!/rubrics/2550/view).
+
+### FP.1 Match 3D Objects
+
+Bounding Boxes are matched between images in ``matchBoundingBoxes`` by utilizing the ``cv::DMatch``es: first, a ``map`` is used to count how many points of the bounding boxes in the previous data frame are present in the current one. This ``map`` is then transformed into a vector of tuples containing ...
+
+* the bounding box ID of the previous data frame
+* the bounding box ID of the current data frame
+* the number of matching points
+
+... which is then sorted by a comperator function comparing the last element of the tuple (number of matching points).
+
+The sorted vector can easily be traversed and an auxiliary ``set`` can ascertain that each bounding box of the previous frame is only mapped exactly once (due to the sorting with the highest number of matches).
+
+### FP.2 Compute Lidar-based TTC
+
+``computeTTCLidar`` processes the lidar points of each bounding box. In order to remove outliers, small clusters of lidar points are removed using ``pcl::EuclideanClusterExtraction`` implemented in the auxiliary ``euclideanClustering(...)`` function as seen in the Lidar Sensor Fusion course.
+
+### FP.3 Associate Keypoint Correspondences with Bounding Boxes
+
+``clusterKptMatchesWithROI`` traverses all ``cv::DMatch``es and checks for every ``trainIdx``, which are the keypoint indices in the current frame, whether the ``boundingBox`` contains that point and - if so - adds it to the ``boundingBox.kptMatches``.
+
+### FP.4 Compute Camera-based TTC
+
+In ``computeTTCCamera``, first, two nested loops iterate through all possible pairs of ``kptMatches``. For each pair, the the the distance ratio in the current and previous frame are computed - subsequently, after sanity checks (minimum distance and division by zero) the distance ratio is computed (``distanceCurr``/``distancePrev``).
+
+All ``distanceRatios``s are stored in a vector which, in a second step, is sorted. The median now can easily be retrieved by retrieving the (two) element(s) in the middle. Now, ``TTC`` can be calculated.
+
+### FP.5 Performance Evaluation 1
+
+### FP.6 Performance Evaluation 2
+
+## Course Content
 
 Welcome to the final project of the camera course. By completing all the lessons, you now have a solid understanding of keypoint detectors, descriptors, and methods to match them between successive images. Also, you know how to detect objects in an image using the YOLO deep-learning framework. And finally, you know how to associate regions in a camera image with Lidar points in 3D space. Let's take a look at our program schematic to see what we already have accomplished and what's still missing.
 

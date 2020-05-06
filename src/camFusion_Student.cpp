@@ -2,8 +2,12 @@
 #include <iostream>
 #include <algorithm>
 #include <numeric>
+#include <map>
+#include <set>
+#include <vector>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <pcl/segmentation/extract_clusters.h>
 
 #include "camFusion.hpp"
 #include "dataStructures.h"
@@ -133,7 +137,15 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 // associate a given bounding box with the keypoints it contains
 void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches)
 {
-    // ...
+    for (const cv::DMatch& kptMatch: kptMatches)
+    {
+        int currIndex = kptMatch.trainIdx, prevIndex = kptMatch.queryIdx;
+        cv::KeyPoint kptCurr = kptsCurr[currIndex], kptPrev = kptsPrev[prevIndex];
+        if (boundingBox.roi.contains(kptCurr.pt))
+        {
+            boundingBox.kptMatches.push_back(kptMatch);
+        }
+    }
 }
 
 
@@ -141,18 +153,186 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint
 void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, 
                       std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
 {
-    // ...
+    // calculate distance ratios between all permutations of key point matches
+    vector<double> distanceRatios;
+    const double minDistance = 100.0;
+    cout << "   camera: processing " << kptMatches.size() << " keypoint matches";
+    for (auto kptMatch1 = kptMatches.begin(); kptMatch1 != kptMatches.end(); kptMatch1++) {
+        const cv::KeyPoint& kptCurr1 = kptsCurr[kptMatch1->trainIdx];
+        const cv::KeyPoint& kptPrev1 = kptsPrev[kptMatch1->queryIdx];
+        for (auto kptMatch2 = kptMatch1+1; kptMatch2 != kptMatches.end(); kptMatch2++) {
+            const cv::KeyPoint& kptCurr2 = kptsCurr[kptMatch2->trainIdx];
+            const cv::KeyPoint& kptPrev2 = kptsPrev[kptMatch2->queryIdx];
+            double distanceCurr = cv::norm(kptCurr1.pt-kptCurr2.pt);
+            double distancePrev = cv::norm(kptPrev1.pt-kptPrev2.pt);
+            // check for minimal distance in current frame and avoid division by zero for distance in previous frame
+            if (distanceCurr >= minDistance && distancePrev > std::numeric_limits<double>::epsilon()) {
+                distanceRatios.push_back(distanceCurr/distancePrev);
+            }
+        }
+    }
+    cout << " - found " << distanceRatios.size() << " distance ratios" << endl;
+    if (distanceRatios.size() != 0)
+    {
+        // find median distance ratio by sorting vector and finding median index
+        sort(distanceRatios.begin(), distanceRatios.end());
+        size_t medianIndex = distanceRatios.size()/2;
+        double medDistanceRatio;
+        if (distanceRatios.size() % 2 == 0)
+        {
+            medDistanceRatio = (distanceRatios[medianIndex-1]+distanceRatios[medianIndex])/2.0;
+        }
+        else
+        {
+            medDistanceRatio = distanceRatios[medianIndex];
+        }
+        // TTC as defined in course
+        TTC = (1/frameRate)/(medDistanceRatio-1);
+    }
+    else
+    {
+        // TTC is not defined if not at least two keypoint matches were found sufficiently apart
+        TTC = NAN;
+    }
+}
+
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr euclideanClustering(vector<LidarPoint>& lidarPoints) {
+    // load lidar points into PCL library 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr inputCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    for (LidarPoint lidarPoint: lidarPoints)
+    {
+        inputCloud->push_back(pcl::PointXYZ((float)lidarPoint.x, (float)lidarPoint.y, (float)lidarPoint.z));
+    }
+    // for efficient search, use KdTree
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr inputTree(new pcl::search::KdTree<pcl::PointXYZ>);
+    inputTree->setInputCloud(inputCloud);
+    // perform euclidean clustering
+    pcl::EuclideanClusterExtraction<pcl::PointXYZ> euclideanClustering;
+    vector<pcl::PointIndices> clustersIndices;
+    euclideanClustering.setInputCloud(inputCloud);
+    euclideanClustering.setSearchMethod(inputTree);
+    euclideanClustering.setMinClusterSize(4);
+    euclideanClustering.setClusterTolerance(0.05);
+    euclideanClustering.extract(clustersIndices);
+    // construct new cloud containing only biggest cluster
+    pcl::PointCloud<pcl::PointXYZ>::Ptr outputCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    for (const pcl::PointIndices& clusterIndices: clustersIndices)
+    {
+        for (size_t index: clusterIndices.indices)
+        {
+            outputCloud->points.push_back(inputCloud->points[index]);
+        }
+    }
+    return outputCloud;
 }
 
 
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
 {
-    // ...
+    // remove outliers by performing euclidean clustering like we learned in the lidar course
+    cout << "   lidar: before clustering: " << lidarPointsPrev.size() << " previous and " << lidarPointsCurr.size() << " current lidar points." << endl;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr prevCloud = euclideanClustering(lidarPointsPrev);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr currCloud = euclideanClustering(lidarPointsCurr);
+    cout << "   lidar: after clustering:  " << prevCloud->points.size() << " previous and " << currCloud->points.size() << " current lidar points." << endl;
+    if (prevCloud->points.size() != 0 && currCloud->points.size() != 0)
+    {
+        // get nearest point from each point cloud
+        double xMinCurr = currCloud->points[0].x;
+        for (const pcl::PointXYZ& point: prevCloud->points)
+        {
+            xMinPrev = point.x < xMinPrev ? point.x : xMinPrev;
+        }
+        double xMinPrev = prevCloud->points[0].x;
+        for (const pcl::PointXYZ& point: currCloud->points)
+        {
+            xMinCurr = point.x < xMinCurr ? point.x : xMinCurr;
+        }
+        // compute TTC
+        TTC = xMinCurr * (1/frameRate) / (xMinPrev-xMinCurr);
+    }
+    else
+    {
+        // edge case: every thing has been smallclustered away
+        TTC = NAN;
+    }
 }
 
 
 void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
 {
-    // ...
+    // no multimap (as introduced in class), but map+vector instead, see
+    // https://stackoverflow.com/questions/52074218/custom-compare-function-for-stdmultimap-when-keys-are-equal
+    // from the "cv:DMatch"es, find the respective bounding boxes which contain the points and count them
+    map<pair<int, int>, size_t> boxToBoxMatchCounts;
+    for (const cv::DMatch& match: matches)
+    {
+        const cv::Point2f& prevFramePoint = prevFrame.keypoints[match.queryIdx].pt;
+        const cv::Point2f& currFramePoint = currFrame.keypoints[match.trainIdx].pt;
+        for (const BoundingBox& prevFrameBox: prevFrame.boundingBoxes)
+        {
+            if (prevFrameBox.roi.contains(prevFramePoint)) {
+                for (const BoundingBox& currFrameBox: currFrame.boundingBoxes)
+                {
+                    boxToBoxMatchCounts[make_pair(prevFrameBox.boxID, currFrameBox.boxID)]++;
+                }
+            }
+        }
+    }
+    // transform to a vector of triples (prevFrameBox.boxID, currFrameBoundingBox.boxID, matchCount computed above)
+    // in order to more easily sort it
+    vector<tuple<int, int, size_t>> boxToBoxMatchesTuples;
+    for (const pair<pair<int, int>, size_t>& boxToBoxMatchCount: boxToBoxMatchCounts)
+    {
+        int prevFrameBoxID = boxToBoxMatchCount.first.first;
+        int currFrameBoxID = boxToBoxMatchCount.first.second;
+        size_t matchCount = boxToBoxMatchCount.second;
+        boxToBoxMatchesTuples.push_back(make_tuple(prevFrameBoxID, currFrameBoxID, matchCount));
+    }
+    // sort it by the number of points that match between the bounding boxes
+    sort(
+            boxToBoxMatchesTuples.begin(), boxToBoxMatchesTuples.end(), 
+            [](const tuple<int, int, size_t>& left, const tuple<int, int, size_t>& right) -> bool
+            {  
+                // sort by matchCount
+                size_t matchCountLeft = get<2>(left);
+                size_t matchCountRight = get<2>(right);
+                return matchCountLeft > matchCountRight;
+            }
+        );
+    // store best match in output "bbBestMatches" but make sure to only assign one match for every currFrameBoxID
+    // since vector is sorted by best match we can traverse in descending order and memorize
+    // which matchedPrevFrameBoxIDs we already saw
+    bbBestMatches.clear();
+    set<int> matchedPrevFrameBoxIDs;
+    set<int> matchedCurrFrameBoxIDs;
+    for (const tuple<int, int, size_t>& boxToBoxMatchTuple: boxToBoxMatchesTuples)
+    {
+        int prevFrameBoxID = get<0>(boxToBoxMatchTuple);
+        int currFrameBoxID = get<1>(boxToBoxMatchTuple);
+        size_t matchCount = get<2>(boxToBoxMatchTuple);
+        if (matchedPrevFrameBoxIDs.find(prevFrameBoxID) == matchedPrevFrameBoxIDs.end())
+        {
+            matchedPrevFrameBoxIDs.insert(prevFrameBoxID);
+            matchedCurrFrameBoxIDs.insert(currFrameBoxID);
+            bbBestMatches.insert(make_pair(prevFrameBoxID, currFrameBoxID));
+            cout << "   mapped BB " << prevFrameBoxID << " to " << currFrameBoxID << " (" << matchCount << " descriptor matches";
+            for (const BoundingBox& currFrameBox: currFrame.boundingBoxes)
+            {
+                if (currFrameBox.boxID == currFrameBoxID && currFrameBox.lidarPoints.size() > 0)
+                {
+                    cout << " and " << currFrameBox.lidarPoints.size() << " lidar points";
+                }
+            }
+            cout << ")." << endl;
+        }
+    }
+    for (const BoundingBox& currFrameBox: currFrame.boundingBoxes)
+    {
+        if (matchedCurrFrameBoxIDs.find(currFrameBox.boxID) == matchedCurrFrameBoxIDs.end())
+        {
+            cout << "   BB " << currFrameBox.boxID << " was not matched (had " << currFrameBox.lidarPoints.size() << " lidar points)" << endl;
+        }
+    }
 }
