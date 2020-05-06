@@ -16,6 +16,9 @@ void readKptMatches(const char* fileName, std::vector<cv::DMatch> &output);
 void writeDescriptors(cv::Mat &input, const char* fileName);
 void readDescriptors(const char* fileName, cv::Mat &output);
 
+void writeBoundingBoxes(std::vector<BoundingBox> &input, const char* fileName);
+void readBoundingBoxes(const char* fileName, std::vector<BoundingBox> &output);
+
 
 template<typename T> void write_pod(std::ofstream& out, T& t);
 template<typename T> void read_pod(std::ifstream& in, T& t);

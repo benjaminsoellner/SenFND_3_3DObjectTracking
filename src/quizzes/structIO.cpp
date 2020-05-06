@@ -48,6 +48,19 @@ template<typename T> void write_pod_vector(std::ofstream& out, std::vector<T>& v
 
 /* DATATYPE WRAPPERS */
 
+void writeBoundingBoxes(std::vector<BoundingBox> &input, const char* fileName)
+{
+    std::ofstream out(fileName);
+    write_pod_vector(out, input);
+    out.close();
+}
+
+void readBoundingBoxes(const char* fileName, std::vector<BoundingBox> &output)
+{
+    std::ifstream in(fileName);
+    read_pod_vector(in, output);
+}
+
 void writeLidarPts(std::vector<LidarPoint> &input, const char* fileName)
 {
     std::ofstream out(fileName);
