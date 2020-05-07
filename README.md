@@ -36,7 +36,7 @@ All ``distanceRatios``s are stored in a vector which, in a second step, is sorte
 
 ### FP.5 & FP.6 Performance Evaluation 1 & 2
 
-**NOTE**: all charts below can be explored interactively on [Tableau Public](https://public.tableau.com/views/chart_15888399888880/Project33DObjectTrackingofUdacitysSensorFusionEngineerNanodegree?:display_count=y&publish=yes&:origin=viz_share_link).
+**NOTE**: all charts below can be explored interactively on [Tableau Public](https://public.tableau.com/profile/benjamin.s.llner#!/vizhome/chart_15888399888880/Project33DObjectTrackingofUdacitysSensorFusionEngineerNanodegree).
 
 From the images, it is evident that the vehicle comes closer from about frame 10ff. However, both TTC from Lidar as well as TTC from Camera get noisier. This is due to the increasing number of lidar points. Even small fluctuations in lidar points when the speed is slow can lead to large noise levels, especially if the car is close. From about frame 48, lidar data seems to become quite useless, intermittently no lidar points at all can be retrieved, which leads to faulty TTC computations.
 
@@ -53,9 +53,6 @@ There are some robust combinations as well, the below image displays some of the
 * (FAST, BRISK, MAT_BF)
 
 ![TTC for Lidar and stable camera algorithms and Key Point Matches over time](stats/stable_algorithms.png)
-
-
-### FP.6 Performance Evaluation 2
 
 ## Course Content
 
