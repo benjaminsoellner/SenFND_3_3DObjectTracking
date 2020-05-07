@@ -216,6 +216,7 @@ void imageLoop(string detectorType, string descriptorType, string matcherType, o
                 if( currBB->lidarPoints.size()>0 && prevBB->lidarPoints.size()>0 ) // only compute TTC if we have Lidar points
                 {
                     cout << "#9 compute TTC" << endl;
+                    cout << "  using Bounding Box " << currBB->boxID << endl;
 
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.2 -> compute time-to-collision based on Lidar data (implement -> computeTTCLidar)
@@ -252,7 +253,7 @@ void imageLoop(string detectorType, string descriptorType, string matcherType, o
                     bVis = false;
 
                     // write output to csv
-                    csv << detectorType << "," << descriptorType << "," << matcherType << "," << imgIndex << "," << ttcLidar << "," << ttcCamera << endl;
+                    csv << detectorType << "," << descriptorType << "," << matcherType << "," << imgIndex << "," << ttcLidar << "," << ttcCamera << "," << currBB->lidarPoints.size() << "," << currBB->kptMatches.size() << endl;
 
                 } // eof TTC computation
             } // eof loop over all BB matches            
@@ -271,7 +272,7 @@ int main(int argc, const char *argv[])
     vector<string> matcherTypes = { "MAT_BF", "MAT_FLANN" };
     string csvFile = "./stats.csv";
     ofstream csvStream(csvFile);
-    csvStream << "detectorType,descriptorType,matcherType,imgIndex,ttcLidar,ttcCamera" << endl;
+    csvStream << "detectorType,descriptorType,matcherType,imgIndex,ttcLidar,ttcCamera,lidarPointsSize,kptMatchesSize" << endl;
 
     for (string detectorType: detectorTypes)
     {

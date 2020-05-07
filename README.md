@@ -34,7 +34,26 @@ In ``computeTTCCamera``, first, two nested loops iterate through all possible pa
 
 All ``distanceRatios``s are stored in a vector which, in a second step, is sorted. The median now can easily be retrieved by retrieving the (two) element(s) in the middle. Now, ``TTC`` can be calculated.
 
-### FP.5 Performance Evaluation 1
+### FP.5 & FP.6 Performance Evaluation 1 & 2
+
+**NOTE**: all charts below can be explored interactively on [Tableau Public](https://public.tableau.com/views/chart_15888399888880/Project33DObjectTrackingofUdacitysSensorFusionEngineerNanodegree?:display_count=y&publish=yes&:origin=viz_share_link).
+
+From the images, it is evident that the vehicle comes closer from about frame 10ff. However, both TTC from Lidar as well as TTC from Camera get noisier. This is due to the increasing number of lidar points. Even small fluctuations in lidar points when the speed is slow can lead to large noise levels, especially if the car is close. From about frame 48, lidar data seems to become quite useless, intermittently no lidar points at all can be retrieved, which leads to faulty TTC computations.
+
+![TTC Lidar and TTC Camera as well as Number of Lidar Points over time](stats/lidar_vs_camera.png)
+
+All combinations of detector/descriptor/matcher algorithms have been tried. There are many faulty TTC estimations due to the low number of descriptors. After frame 48, the consistency of keypoint matches becomes unstable.
+
+![TTC for Lidar and all camera algorithms as well as Number of Lidar Points and Key Point Matches over time](stats/all_algorithms.png)
+
+There are some robust combinations as well, the below image displays some of them. From the midterm project, we can order them per runtime in ascending order:
+* (FAST, BRIEF, MAT_BF) - **fastest**
+* (FAST, FREAK, MAT_BF) - **most accurate**
+* (SIFT, FREAK, MAT_BF)
+* (FAST, BRISK, MAT_BF)
+
+![TTC for Lidar and stable camera algorithms and Key Point Matches over time](stats/stable_algorithms.png)
+
 
 ### FP.6 Performance Evaluation 2
 

@@ -239,12 +239,12 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
     if (prevCloud->points.size() != 0 && currCloud->points.size() != 0)
     {
         // get nearest point from each point cloud
-        double xMinCurr = currCloud->points[0].x;
+        double xMinPrev = prevCloud->points[0].x;
         for (const pcl::PointXYZ& point: prevCloud->points)
         {
             xMinPrev = point.x < xMinPrev ? point.x : xMinPrev;
         }
-        double xMinPrev = prevCloud->points[0].x;
+        double xMinCurr = currCloud->points[0].x;
         for (const pcl::PointXYZ& point: currCloud->points)
         {
             xMinCurr = point.x < xMinCurr ? point.x : xMinCurr;
